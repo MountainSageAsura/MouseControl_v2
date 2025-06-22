@@ -7,9 +7,7 @@
 
 **Control your computer's mouse remotely from your phone with a beautiful, modern interface.**
 
-MouseControl_v2 is a sleek PyQt6 application that turns your smartphone into a wireless mouse and trackpad. Simply start the server, connect your phone to the web interface, and control your computer remotely over WiFi.
-
-![MouseControl Demo](https://via.placeholder.com/800x400/667eea/ffffff?text=MouseControl+v2+Demo)
+MouseControl_v2 is a sleek PyQt6 application that turns your smartphone into a wireless mouse, keyboard, and trackpad. Simply start the server, connect your phone to the web interface, and control your computer remotely over WiFi.
 
 ## ✨ Features
 
@@ -22,8 +20,19 @@ MouseControl_v2 is a sleek PyQt6 application that turns your smartphone into a w
 
 ### 📱 Mobile-Optimized Interface
 - **Touch-responsive trackpad** for smooth cursor control
-- **Click buttons** for left, right, and middle mouse clicks
-- **Scroll controls** for wheel scrolling
+- **Multi-touch gestures**:
+  - Single tap for left click
+  - Two-finger scroll (vertical)
+  - Pinch to zoom (Ctrl + scroll)
+- **Click buttons** for left/right click and scroll up/down
+- **Full virtual keyboard** with:
+  - QWERTY layout
+  - Number row
+  - Special keys (Tab, Esc, Enter, Backspace, etc.)
+  - Keyboard shortcuts (Copy, Paste, Undo, Redo, Select All)
+  - Arrow keys and navigation
+- **Gesture indicators** showing current action
+- **Auto-scrolling** when keyboard is displayed
 - **Cross-platform** - works on any device with a web browser
 - **No app installation** required on phone
 
@@ -32,16 +41,17 @@ MouseControl_v2 is a sleek PyQt6 application that turns your smartphone into a w
 - **Comprehensive help system** built into the GUI
 - **Automatic IP detection** and connection guidance
 - **Firewall configuration** assistance
-- **Professional logging** and error handling
+- **Professional logging** with timestamps and clear formatting
+- **Error handling** for network and input device issues
 
 ## 🚀 Quick Start
 
-### For End Users (Executable)
+### For End Users (Windows Executable)
 1. Download `MouseController.exe` from [Releases](../../releases)
 2. Run the executable
 3. Click "🚀 Start Server"
-4. Open the displayed URL on your phone
-5. Control your mouse remotely!
+4. Open the displayed URL on your phone's browser
+5. Control your mouse and keyboard remotely!
 
 ### For Developers
 ```bash
@@ -50,10 +60,10 @@ git clone https://github.com/YourUsername/MouseControl_v2.git
 cd MouseControl_v2
 
 # Install dependencies
-pip install -r requirements.txt
+pip install PyQt6 pynput
 
 # Run the application
-python mouse_controller_gui.py
+python mouse_server.py
 ```
 
 ## 📦 Installation
@@ -65,44 +75,18 @@ python mouse_controller_gui.py
 
 ### Install Dependencies
 ```bash
-pip install PyQt6 pynput pyinstaller
+pip install PyQt6 pynput
 ```
 
-### Build Executable (Windows)
+### Optional: Build Executable (Windows)
 ```bash
-# Use the included build script
-build_executable.bat
+pip install pyinstaller
 
-# Or manually
-pyinstaller --onefile --windowed --name="MouseController" mouse_controller_gui.py
+# Build with icon and optimizations
+pyinstaller --onefile --windowed --name="MouseController" --icon="mouse.ico" mouse_server.py
 ```
 
 Your executable will be created in the `dist/` folder.
-
-## 🖼️ Screenshots
-
-<table>
-<tr>
-<td>
-<img src="https://via.placeholder.com/400x300/2c3e50/ffffff?text=Main+Control+Panel" alt="Control Panel" width="400"/>
-<br><em>Main Control Panel</em>
-</td>
-<td>
-<img src="https://via.placeholder.com/400x300/667eea/ffffff?text=Mobile+Interface" alt="Mobile Interface" width="400"/>
-<br><em>Mobile Web Interface</em>
-</td>
-</tr>
-<tr>
-<td>
-<img src="https://via.placeholder.com/400x300/27ae60/ffffff?text=Real-time+Logs" alt="Logs" width="400"/>
-<br><em>Real-time Connection Logs</em>
-</td>
-<td>
-<img src="https://via.placeholder.com/400x300/e74c3c/ffffff?text=Help+System" alt="Help" width="400"/>
-<br><em>Built-in Help & Troubleshooting</em>
-</td>
-</tr>
-</table>
 
 ## 🎯 Use Cases
 
@@ -110,7 +94,25 @@ Your executable will be created in the `dist/` folder.
 - **Media Centers** - Navigate your HTPC from the couch
 - **Accessibility** - Alternative input method for users with mobility challenges
 - **Remote Work** - Control a computer from across the room
-- **Gaming** - Use phone as a wireless mouse for gaming setups
+- **Gaming** - Use phone as a wireless mouse for casual gaming
+- **Teaching** - Control computer while moving around classroom
+
+## 🖥️ Interface Guide
+
+### Desktop Application
+1. **Control Tab**: Start/stop server, view connection info
+2. **Logs Tab**: Monitor all connections and actions in real-time
+3. **Help Tab**: Comprehensive troubleshooting and setup guides
+
+### Mobile Web Interface
+1. **Trackpad Area**: 
+   - Move finger to control cursor
+   - Tap for left click
+   - Two fingers for scrolling
+   - Pinch for zoom
+2. **Control Buttons**: Quick access to clicks and scrolls
+3. **Virtual Keyboard**: Full keyboard with special keys and shortcuts
+4. **Status Bar**: Connection status and current time
 
 ## 🔧 Configuration
 
@@ -126,9 +128,9 @@ netsh advfirewall firewall add rule name="Mouse Controller" dir=in action=allow 
 ```
 
 ### Custom Port
-Edit the port in `mouse_controller_gui.py`:
+To change the default port (3000), edit line in `mouse_server.py`:
 ```python
-self.server_thread = ServerThread(port=3000)  # Change to desired port
+def __init__(self, port=3000):  # Change to desired port
 ```
 
 ## 🛠️ Technical Details
@@ -137,28 +139,40 @@ self.server_thread = ServerThread(port=3000)  # Change to desired port
 - **Frontend**: PyQt6 with dark theme and modern styling
 - **Backend**: Python HTTP server with threading
 - **Mobile Interface**: Responsive HTML5 with touch events
-- **Mouse Control**: pynput library for cross-platform input simulation
+- **Mouse/Keyboard Control**: pynput library for cross-platform input simulation
 
-### Protocol
-- **Communication**: HTTP REST API over WiFi
-- **Commands**: JSON-formatted mouse actions (move, click, scroll)
-- **Security**: Local network only, no external connections
+### Mobile Interface Features
+- **Responsive Design**: Adapts to any screen size
+- **Touch Optimized**: All interactions designed for touch
+- **Visual Feedback**: Gesture indicators and button animations
+- **Smooth Scrolling**: Automatic scroll to keyboard when shown
+- **No External Dependencies**: Pure HTML/CSS/JavaScript
 
 ### Performance
 - **Latency**: <50ms on typical home networks
-- **Compatibility**: Works with any device that has a web browser
-- **Resource Usage**: Minimal CPU and memory footprint
+- **Mouse Movement**: 2x scaling for better control
+- **Scroll Sensitivity**: Adjustable amount per gesture
+- **Zoom Control**: Ctrl + scroll wheel simulation
 
 ## 🔍 Troubleshooting
 
-The application includes a comprehensive help system with solutions for:
+The application includes a comprehensive help system. Common solutions:
 
-- **Connection Issues**: Network configuration and firewall setup
-- **Performance Problems**: WiFi optimization and interference
-- **Compatibility**: Device-specific browser quirks
-- **Security**: Safe usage guidelines and best practices
+### Can't Connect from Phone
+1. Check both devices are on same WiFi (not guest network)
+2. Disable Windows Firewall temporarily to test
+3. Ensure server shows "Running" status
+4. Try http://localhost:3000 on computer first
 
-For additional help, check the [Issues](../../issues) page or the built-in Help tab.
+### Keyboard Not Showing
+- Click "⌨️ Keyboard" button
+- Keyboard will auto-scroll into view
+- Use "❌ Hide Keyboard" to close
+
+### Mouse Movement Issues
+- Ensure pynput is installed: `pip install pynput`
+- Check Windows security settings
+- Try running as administrator
 
 ## 🤝 Contributing
 
@@ -170,30 +184,24 @@ We welcome contributions! Here's how you can help:
 4. **Push** to the branch (`git push origin feature/AmazingFeature`)
 5. **Open** a Pull Request
 
-### Development Setup
-```bash
-git clone https://github.com/YourUsername/MouseControl_v2.git
-cd MouseControl_v2
-pip install -r requirements.txt
-python mouse_controller_gui.py
-```
-
-### Coding Standards
-- Follow PEP 8 for Python code
-- Use meaningful variable names
-- Add docstrings for new functions
-- Test on multiple platforms when possible
+### Development Areas
+- Add authentication/password protection
+- Implement HTTPS support
+- Add custom themes
+- Improve gesture recognition
+- Add gamepad/joystick mode
 
 ## 📋 Roadmap
 
 - [ ] **Authentication** - Optional password protection
-- [ ] **Keyboard Support** - Virtual keyboard interface
+- [ ] **HTTPS Support** - Encrypted connections
+- [ ] **Custom Themes** - Light theme and color customization
+- [ ] **Advanced Gestures** - Three-finger gestures, swipe actions
 - [ ] **Multi-Monitor** - Support for multiple displays
-- [ ] **Gestures** - Advanced touch gestures (pinch, swipe)
-- [ ] **Themes** - Light theme and custom color schemes
-- [ ] **Encryption** - HTTPS support for enhanced security
+- [ ] **Macro Recording** - Record and playback mouse/keyboard actions
 - [ ] **Mobile App** - Native iOS/Android applications
 - [ ] **Bluetooth** - Direct Bluetooth connection option
+- [ ] **Voice Commands** - Control via voice recognition
 
 ## 📄 License
 
@@ -203,7 +211,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - **PyQt6** - For the excellent GUI framework
 - **pynput** - For cross-platform input control
-- **Contributors** - Thanks to everyone who has contributed to this project
+- **Open Source Community** - For inspiration and support
 
 ## 📞 Support
 
@@ -211,12 +219,43 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Issues**: [GitHub Issues](../../issues) for bug reports and feature requests
 - **Discussions**: [GitHub Discussions](../../discussions) for questions and community support
 
+## ⚙️ Requirements
+
+### Minimum System Requirements
+- **OS**: Windows 7+, macOS 10.12+, or Linux with X11
+- **Python**: 3.6 or higher (for running from source)
+- **RAM**: 100MB free memory
+- **Network**: WiFi or Ethernet connection
+
+### Mobile Device Requirements
+- **Browser**: Any modern browser (Chrome, Safari, Firefox)
+- **OS**: iOS 10+, Android 5+, or any device with HTML5 support
+- **Network**: Same network as computer
+
+## 🎨 Customization
+
+### Changing Colors
+Edit the color scheme in `mouse_server.py`:
+```python
+background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+```
+
+### Adjusting Touch Sensitivity
+Modify movement scaling:
+```python
+self.move_mouse(dx * 2, dy * 2)  # Change multiplier
+```
+
+### Keyboard Layout
+Add or modify keys in the HTML interface within `get_html_interface()` method.
+
 ## ⭐ Show Your Support
 
 If this project helped you, please consider:
 - Giving it a **star** ⭐
-- **Sharing** it with others
-- **Contributing** to make it even better
+- **Sharing** it with others who might find it useful
+- **Contributing** code, documentation, or bug reports
+- **Sponsoring** development of new features
 
 ---
 
