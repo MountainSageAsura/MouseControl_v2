@@ -80,6 +80,7 @@ class MouseControlHandler(http.server.BaseHTTPRequestHandler):
             if action == 'move':
                 dx = command.get('dx', 0)
                 dy = command.get('dy', 0)
+                # Scale the movement for better control
                 self.move_mouse(dx * 2, dy * 2)
             elif action == 'click':
                 button = command.get('button', 'left')
@@ -87,8 +88,18 @@ class MouseControlHandler(http.server.BaseHTTPRequestHandler):
                 self.log(f"Click: {button} from {self.client_address[0]}")
             elif action == 'scroll':
                 direction = command.get('direction', 'up')
-                self.scroll(direction)
-                self.log(f"Scroll: {direction} from {self.client_address[0]}")
+                amount = command.get('amount', 1)
+                self.scroll(direction, amount)
+                self.log(f"Scroll: {direction} (x{amount}) from {self.client_address[0]}")
+            elif action == 'key':
+                key_type = command.get('key_type', 'char')
+                key_value = command.get('key_value', '')
+                self.send_key(key_type, key_value)
+                self.log(f"Key: {key_type}={key_value} from {self.client_address[0]}")
+            elif action == 'zoom':
+                direction = command.get('direction', 'in')
+                self.zoom(direction)
+                self.log(f"Zoom: {direction} from {self.client_address[0]}")
 
             response = json.dumps({'status': 'ok'})
             self.wfile.write(response.encode('utf-8'))
@@ -109,28 +120,114 @@ class MouseControlHandler(http.server.BaseHTTPRequestHandler):
     def move_mouse(self, dx, dy):
         """Move mouse relative to current position"""
         if self.mouse_controller:
-            current_x, current_y = self.mouse_controller.position
-            new_x = current_x + dx
-            new_y = current_y + dy
-            self.mouse_controller.position = (new_x, new_y)
+            try:
+                current_x, current_y = self.mouse_controller.position
+                new_x = current_x + dx
+                new_y = current_y + dy
+                self.mouse_controller.position = (new_x, new_y)
+            except Exception as e:
+                self.log(f"Mouse move error: {e}")
 
     def click(self, button='left'):
         """Perform mouse click"""
         if self.mouse_controller:
-            if button == 'left':
-                self.mouse_controller.click(Button.left)
-            elif button == 'right':
-                self.mouse_controller.click(Button.right)
-            elif button == 'middle':
-                self.mouse_controller.click(Button.middle)
+            try:
+                if button == 'left':
+                    self.mouse_controller.click(Button.left)
+                elif button == 'right':
+                    self.mouse_controller.click(Button.right)
+                elif button == 'middle':
+                    self.mouse_controller.click(Button.middle)
+            except Exception as e:
+                self.log(f"Mouse click error: {e}")
 
-    def scroll(self, direction):
+    def scroll(self, direction, amount=1):
         """Scroll mouse wheel"""
         if self.mouse_controller:
-            if direction == 'up':
-                self.mouse_controller.scroll(0, 1)
-            elif direction == 'down':
-                self.mouse_controller.scroll(0, -1)
+            try:
+                scroll_amount = amount * (1 if direction == 'up' else -1)
+                self.mouse_controller.scroll(0, scroll_amount)
+            except Exception as e:
+                self.log(f"Mouse scroll error: {e}")
+
+    def send_key(self, key_type, key_value):
+        """Send keyboard input"""
+        try:
+            from pynput.keyboard import Key, Controller as KeyboardController
+            keyboard = KeyboardController()
+
+            if key_type == 'char':
+                # Regular character
+                keyboard.type(key_value)
+            elif key_type == 'special':
+                # Special keys
+                key_map = {
+                    'enter': Key.enter,
+                    'backspace': Key.backspace,
+                    'space': Key.space,
+                    'tab': Key.tab,
+                    'escape': Key.esc,
+                    'shift': Key.shift,
+                    'ctrl': Key.ctrl,
+                    'alt': Key.alt,
+                    'up': Key.up,
+                    'down': Key.down,
+                    'left': Key.left,
+                    'right': Key.right,
+                    'home': Key.home,
+                    'end': Key.end,
+                    'page_up': Key.page_up,
+                    'page_down': Key.page_down,
+                    'delete': Key.delete,
+                    'f1': Key.f1, 'f2': Key.f2, 'f3': Key.f3, 'f4': Key.f4,
+                    'f5': Key.f5, 'f6': Key.f6, 'f7': Key.f7, 'f8': Key.f8,
+                    'f9': Key.f9, 'f10': Key.f10, 'f11': Key.f11, 'f12': Key.f12
+                }
+
+                if key_value in key_map:
+                    keyboard.press(key_map[key_value])
+                    keyboard.release(key_map[key_value])
+            elif key_type == 'combo':
+                # Key combinations like Ctrl+C
+                keys = key_value.split('+')
+                key_objects = []
+
+                for key in keys:
+                    if key.lower() == 'ctrl':
+                        key_objects.append(Key.ctrl)
+                    elif key.lower() == 'shift':
+                        key_objects.append(Key.shift)
+                    elif key.lower() == 'alt':
+                        key_objects.append(Key.alt)
+                    else:
+                        key_objects.append(key.lower())
+
+                # Press all keys
+                for key in key_objects:
+                    keyboard.press(key)
+
+                # Release all keys in reverse order
+                for key in reversed(key_objects):
+                    keyboard.release(key)
+
+        except Exception as e:
+            self.log(f"Keyboard error: {e}")
+
+    def zoom(self, direction):
+        """Simulate zoom using Ctrl + scroll wheel"""
+        if self.mouse_controller:
+            try:
+                from pynput.keyboard import Key, Controller as KeyboardController
+                keyboard = KeyboardController()
+
+                keyboard.press(Key.ctrl)
+                if direction == 'in':
+                    self.mouse_controller.scroll(0, 3)  # More scroll for zoom
+                else:  # zoom out
+                    self.mouse_controller.scroll(0, -3)
+                keyboard.release(Key.ctrl)
+            except Exception as e:
+                self.log(f"Zoom error: {e}")  # Log zoom errors for debugging
 
     def log_message(self, format, *args):
         """Override to suppress default logging"""
@@ -142,75 +239,355 @@ class MouseControlHandler(http.server.BaseHTTPRequestHandler):
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>🖱️ Mouse Controller</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * { 
+            margin: 0; 
+            padding: 0; 
+            box-sizing: border-box; 
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            height: 100vh; overflow: hidden; user-select: none;
+            height: 100vh; 
+            overflow: hidden; 
+            touch-action: none;
         }
-        .container { height: 100vh; display: flex; flex-direction: column; padding: 15px; }
+        .container { 
+            height: 100vh; 
+            display: flex; 
+            flex-direction: column; 
+            padding: 10px; 
+        }
         .header {
-            background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(20px);
-            border-radius: 15px; padding: 15px; margin-bottom: 15px;
-            text-align: center; color: white;
+            background: rgba(255, 255, 255, 0.1); 
+            backdrop-filter: blur(15px);
+            border-radius: 12px; 
+            padding: 12px; 
+            margin-bottom: 10px;
+            text-align: center; 
+            color: white;
+            font-size: 14px;
+            font-weight: 500;
         }
-        .header h1 { font-size: 24px; margin-bottom: 5px; }
-        .header p { opacity: 0.8; font-size: 14px; }
         .trackpad {
-            flex: 1; background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(20px);
-            border-radius: 20px; margin-bottom: 15px; display: flex;
-            align-items: center; justify-content: center; color: white;
-            font-size: 18px; text-align: center; position: relative;
-            border: 2px solid rgba(255, 255, 255, 0.2);
+            flex: 1; 
+            background: rgba(255, 255, 255, 0.08); 
+            backdrop-filter: blur(20px);
+            border-radius: 16px; 
+            margin-bottom: 10px; 
+            display: flex;
+            align-items: center; 
+            justify-content: center; 
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 16px; 
+            text-align: center; 
+            position: relative;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            cursor: none;
+            min-height: 200px;
         }
-        .trackpad::before {
-            content: ''; position: absolute; top: 50%; left: 50%;
-            width: 4px; height: 4px; background: rgba(255, 255, 255, 0.6);
-            border-radius: 50%; transform: translate(-50%, -50%);
+        .trackpad-hint {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            font-size: 14px;
+            opacity: 0.6;
+        }
+        .status-bar {
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            border-radius: 8px;
+            padding: 8px 12px;
+            color: white;
+            font-size: 12px;
+            text-align: center;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+        }
+        .gesture-indicator {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 1000;
+        }
+        .gesture-indicator.show {
+            opacity: 1;
         }
         .controls {
-            display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px;
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 10px;
         }
         .control-btn {
-            background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(20px);
-            border: none; border-radius: 12px; padding: 18px; color: white;
-            font-size: 14px; font-weight: 600; cursor: pointer;
-            transition: all 0.2s ease; border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(20px);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+            padding: 15px 8px;
+            color: white;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: center;
+            user-select: none;
         }
-        .control-btn:active {
-            background: rgba(255, 255, 255, 0.3); transform: scale(0.96);
+        .control-btn:active, .control-btn:hover {
+            background: rgba(255, 255, 255, 0.4);
+            transform: scale(0.95);
+            border-color: rgba(255, 255, 255, 0.5);
         }
-        .scroll-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .keyboard-toggle {
+            background: rgba(100, 200, 255, 0.3);
+            backdrop-filter: blur(20px);
+            border: 2px solid rgba(100, 200, 255, 0.5);
+            border-radius: 10px;
+            padding: 15px;
+            color: white;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-bottom: 50px;
+            text-align: center;
+            width: 100%;
+            user-select: none;
+        }
+        .keyboard-toggle:active, .keyboard-toggle:hover {
+            background: rgba(100, 200, 255, 0.5);
+            transform: scale(0.98);
+            border-color: rgba(100, 200, 255, 0.7);
+        }
+        .keyboard {
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(20px);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 10px;
+            display: none;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+        }
+        .keyboard.show {
+            display: block;
+        }
+        .keyboard-row {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 8px;
+            justify-content: center;
+        }
+        .key {
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.1s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 32px;
+            height: 40px;
+            padding: 0 8px;
+            user-select: none;
+        }
+        .key:active, .key:hover {
+            background: rgba(255, 255, 255, 0.4);
+            transform: scale(0.95);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+        .key.wide {
+            flex: 2;
+        }
+        .key.extra-wide {
+            flex: 3;
+        }
+        .special-keys {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .special-key {
+            background: rgba(100, 150, 255, 0.3);
+            border: 2px solid rgba(100, 150, 255, 0.5);
+            border-radius: 8px;
+            color: white;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.1s ease;
+            padding: 10px 6px;
+            text-align: center;
+            user-select: none;
+        }
+        .special-key:active, .special-key:hover {
+            background: rgba(100, 150, 255, 0.6);
+            transform: scale(0.95);
+            border-color: rgba(100, 150, 255, 0.7);
+        }
+        .right-click-indicator {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 150, 255, 0.8);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 12px;
+            font-size: 16px;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            z-index: 1001;
+            pointer-events: none;
+        }
+        .right-click-indicator.show {
+            opacity: 1;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>🖱️ Mouse Controller</h1>
-            <p>Control your computer's mouse remotely</p>
+            🖱️ Mouse Controller
         </div>
 
         <div class="trackpad" id="trackpad">
-            <div>📱 Trackpad<br><small>Move your finger here</small></div>
+            <div class="trackpad-hint">
+                Move • Tap • 2-Finger Scroll • Pinch Zoom
+            </div>
         </div>
 
         <div class="controls">
-            <button class="control-btn" onclick="sendClick('left')">👆 Left Click</button>
-            <button class="control-btn" onclick="sendClick('right')">👆 Right Click</button>
-            <button class="control-btn" onclick="sendClick('middle')">👆 Middle Click</button>
+            <button class="control-btn" onclick="sendClick('left')">👆 Left</button>
+            <button class="control-btn" onclick="sendClick('right')">👆 Right</button>
+            <button class="control-btn" onclick="sendScroll('up')">⬆️ Up</button>
+            <button class="control-btn" onclick="sendScroll('down')">⬇️ Down</button>
         </div>
 
-        <div class="scroll-controls">
-            <button class="control-btn" onclick="sendScroll('up')">⬆️ Scroll Up</button>
-            <button class="control-btn" onclick="sendScroll('down')">⬇️ Scroll Down</button>
+        <button class="keyboard-toggle" onclick="toggleKeyboard()">⌨️ Keyboard</button>
+
+        <div class="keyboard" id="keyboard">
+            <!-- Number row -->
+            <div class="keyboard-row">
+                <div class="key" data-key="char" data-value="1">1</div>
+                <div class="key" data-key="char" data-value="2">2</div>
+                <div class="key" data-key="char" data-value="3">3</div>
+                <div class="key" data-key="char" data-value="4">4</div>
+                <div class="key" data-key="char" data-value="5">5</div>
+                <div class="key" data-key="char" data-value="6">6</div>
+                <div class="key" data-key="char" data-value="7">7</div>
+                <div class="key" data-key="char" data-value="8">8</div>
+                <div class="key" data-key="char" data-value="9">9</div>
+                <div class="key" data-key="char" data-value="0">0</div>
+            </div>
+
+            <!-- Top row -->
+            <div class="keyboard-row">
+                <div class="key" data-key="char" data-value="q">Q</div>
+                <div class="key" data-key="char" data-value="w">W</div>
+                <div class="key" data-key="char" data-value="e">E</div>
+                <div class="key" data-key="char" data-value="r">R</div>
+                <div class="key" data-key="char" data-value="t">T</div>
+                <div class="key" data-key="char" data-value="y">Y</div>
+                <div class="key" data-key="char" data-value="u">U</div>
+                <div class="key" data-key="char" data-value="i">I</div>
+                <div class="key" data-key="char" data-value="o">O</div>
+                <div class="key" data-key="char" data-value="p">P</div>
+            </div>
+
+            <!-- Middle row -->
+            <div class="keyboard-row">
+                <div class="key" data-key="char" data-value="a">A</div>
+                <div class="key" data-key="char" data-value="s">S</div>
+                <div class="key" data-key="char" data-value="d">D</div>
+                <div class="key" data-key="char" data-value="f">F</div>
+                <div class="key" data-key="char" data-value="g">G</div>
+                <div class="key" data-key="char" data-value="h">H</div>
+                <div class="key" data-key="char" data-value="j">J</div>
+                <div class="key" data-key="char" data-value="k">K</div>
+                <div class="key" data-key="char" data-value="l">L</div>
+            </div>
+
+            <!-- Bottom row -->
+            <div class="keyboard-row">
+                <div class="key" data-key="char" data-value="z">Z</div>
+                <div class="key" data-key="char" data-value="x">X</div>
+                <div class="key" data-key="char" data-value="c">C</div>
+                <div class="key" data-key="char" data-value="v">V</div>
+                <div class="key" data-key="char" data-value="b">B</div>
+                <div class="key" data-key="char" data-value="n">N</div>
+                <div class="key" data-key="char" data-value="m">M</div>
+                <div class="key" data-key="special" data-value="backspace">⌫</div>
+            </div>
+
+            <!-- Space and Enter row -->
+            <div class="keyboard-row">
+                <div class="key wide" data-key="special" data-value="shift">⇧ Shift</div>
+                <div class="key extra-wide" data-key="special" data-value="space">Space</div>
+                <div class="key wide" data-key="special" data-value="enter">↵ Enter</div>
+            </div>
+
+            <!-- Special keys -->
+            <div class="special-keys">
+                <div class="special-key" data-key="special" data-value="tab">Tab</div>
+                <div class="special-key" data-key="special" data-value="escape">Esc</div>
+                <div class="special-key" data-key="combo" data-value="ctrl+c">Copy</div>
+                <div class="special-key" data-key="combo" data-value="ctrl+v">Paste</div>
+                <div class="special-key" data-key="special" data-value="up">↑</div>
+                <div class="special-key" data-key="special" data-value="down">↓</div>
+                <div class="special-key" data-key="special" data-value="left">←</div>
+                <div class="special-key" data-key="special" data-value="right">→</div>
+                <div class="special-key" data-key="combo" data-value="ctrl+z">Undo</div>
+                <div class="special-key" data-key="combo" data-value="ctrl+y">Redo</div>
+                <div class="special-key" data-key="combo" data-value="ctrl+a">All</div>
+                <div class="special-key" data-key="special" data-value="delete">Del</div>
+            </div>
+        </div>
+
+        <div class="status-bar" id="status">
+            Ready • Left/Right Click • Scroll • Keyboard Available
         </div>
     </div>
 
+    <div class="gesture-indicator" id="gestureIndicator"></div>
+
     <script>
         let lastTouchX = 0, lastTouchY = 0;
+        let lastTouchTime = 0;
+        let gestureStartDistance = 0;
+        let isScrolling = false;
+        let lastZoomDistance = 0;
+        let isZooming = false;
+        let keyboardVisible = false;
+
+        const gestureIndicator = document.getElementById('gestureIndicator');
+        const status = document.getElementById('status');
+        const keyboard = document.getElementById('keyboard');
+
+        function showGesture(text) {
+            gestureIndicator.textContent = text;
+            gestureIndicator.classList.add('show');
+            setTimeout(() => gestureIndicator.classList.remove('show'), 1000);
+        }
+
         function sendCommand(command) {
             fetch(window.location.origin, {
                 method: 'POST',
@@ -218,44 +595,280 @@ class MouseControlHandler(http.server.BaseHTTPRequestHandler):
                 body: JSON.stringify(command)
             }).catch(error => console.error('Error:', error));
         }
-        function sendClick(button) { sendCommand({ action: 'click', button: button }); }
-        function sendScroll(direction) { sendCommand({ action: 'scroll', direction: direction }); }
+
+        function sendClick(button) {
+            sendCommand({ action: 'click', button: button });
+            showGesture(button === 'left' ? '👆 Left Click' : '👆 Right Click');
+        }
+
+        function sendScroll(direction) {
+            sendCommand({ action: 'scroll', direction: direction, amount: 3 });
+            showGesture(direction === 'up' ? '⬆️ Scroll Up' : '⬇️ Scroll Down');
+        }
+
+        function sendKey(type, value) {
+            sendCommand({ action: 'key', key_type: type, key_value: value });
+            let displayValue = value;
+            if (type === 'combo') {
+                displayValue = value.replace('ctrl+', 'Ctrl+');
+            } else if (type === 'special') {
+                displayValue = value.charAt(0).toUpperCase() + value.slice(1);
+            }
+            showGesture(`⌨️ ${displayValue}`);
+        }
+
+        function toggleKeyboard() {
+            keyboardVisible = !keyboardVisible;
+            keyboard.classList.toggle('show', keyboardVisible);
+
+            // Update button text
+            const toggleBtn = document.querySelector('.keyboard-toggle');
+            toggleBtn.textContent = keyboardVisible ? '❌ Hide Keyboard' : '⌨️ Show Keyboard';
+        }
+
+        function getDistance(touch1, touch2) {
+            const dx = touch1.clientX - touch2.clientX;
+            const dy = touch1.clientY - touch2.clientY;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+
+
+        // Add event listeners after DOM is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            setupEventListeners();
+        });
+
+        function setupEventListeners() {
+            // Control buttons
+            document.getElementById('leftBtn').addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                sendClick('left');
+            });
+
+            document.getElementById('rightBtn').addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                sendClick('right');
+            });
+
+            document.getElementById('upBtn').addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                sendScroll('up');
+            });
+
+            document.getElementById('downBtn').addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                sendScroll('down');
+            });
+
+            // Keyboard toggle button
+            document.getElementById('keyboardBtn').addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                toggleKeyboard();
+            });
+
+            // Keyboard keys
+            document.querySelectorAll('.key, .special-key').forEach(function(key) {
+                key.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const keyType = this.getAttribute('data-key');
+                    const keyValue = this.getAttribute('data-value');
+                    sendKey(keyType, keyValue);
+                });
+
+                // Also add touch events for better mobile support
+                key.addEventListener('touchstart', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.style.background = 'rgba(255, 255, 255, 0.6)';
+                });
+
+                key.addEventListener('touchend', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.style.background = '';
+                    const keyType = this.getAttribute('data-key');
+                    const keyValue = this.getAttribute('data-value');
+                    sendKey(keyType, keyValue);
+                });
+            });
+
+            // Control buttons touch events
+            document.querySelectorAll('.control-btn').forEach(function(btn) {
+                btn.addEventListener('touchstart', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.style.background = 'rgba(255, 255, 255, 0.6)';
+                });
+
+                btn.addEventListener('touchend', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.style.background = '';
+                });
+            });
+
+            // Keyboard toggle touch events
+            document.getElementById('keyboardBtn').addEventListener('touchstart', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                this.style.background = 'rgba(100, 200, 255, 0.7)';
+            });
+
+            document.getElementById('keyboardBtn').addEventListener('touchend', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                this.style.background = '';
+            });
+        }
 
         const trackpad = document.getElementById('trackpad');
+
+        // Touch start
         trackpad.addEventListener('touchstart', function(e) {
             e.preventDefault();
-            const touch = e.touches[0];
-            lastTouchX = touch.clientX;
-            lastTouchY = touch.clientY;
+            const touches = e.touches;
+            lastTouchTime = Date.now();
+
+            if (touches.length === 1) {
+                // Single finger - prepare for move or tap
+                lastTouchX = touches[0].clientX;
+                lastTouchY = touches[0].clientY;
+                isScrolling = false;
+                isZooming = false;
+            } else if (touches.length === 2) {
+                // Two fingers - prepare for scroll/pinch/double tap
+                lastTouchX = (touches[0].clientX + touches[1].clientX) / 2;
+                lastTouchY = (touches[0].clientY + touches[1].clientY) / 2;
+                gestureStartDistance = getDistance(touches[0], touches[1]);
+                lastZoomDistance = gestureStartDistance;
+                isScrolling = true;
+                isZooming = false;
+            }
         });
+
+        // Touch move
         trackpad.addEventListener('touchmove', function(e) {
             e.preventDefault();
-            const touch = e.touches[0];
-            const deltaX = touch.clientX - lastTouchX;
-            const deltaY = touch.clientY - lastTouchY;
-            sendCommand({ action: 'move', dx: deltaX, dy: deltaY });
-            lastTouchX = touch.clientX;
-            lastTouchY = touch.clientY;
+            const touches = e.touches;
+
+            if (touches.length === 1 && !isScrolling && !isZooming) {
+                // Single finger move - cursor movement
+                const deltaX = touches[0].clientX - lastTouchX;
+                const deltaY = touches[0].clientY - lastTouchY;
+
+                if (Math.abs(deltaX) > 1 || Math.abs(deltaY) > 1) {
+                    sendCommand({
+                        action: 'move',
+                        dx: deltaX,
+                        dy: deltaY
+                    });
+
+                    lastTouchX = touches[0].clientX;
+                    lastTouchY = touches[0].clientY;
+                }
+            } else if (touches.length === 2) {
+                // Two finger gestures
+                const centerX = (touches[0].clientX + touches[1].clientX) / 2;
+                const centerY = (touches[0].clientY + touches[1].clientY) / 2;
+                const currentDistance = getDistance(touches[0], touches[1]);
+
+                // Detect pinch to zoom (significant distance change)
+                const zoomThreshold = 30;
+                const distanceDiff = currentDistance - lastZoomDistance;
+
+                if (Math.abs(distanceDiff) > zoomThreshold) {
+                    isZooming = true;
+                    if (distanceDiff > 0) {
+                        sendCommand({ action: 'zoom', direction: 'in' });
+                        showGesture('🔍+ Zoom In');
+                    } else {
+                        sendCommand({ action: 'zoom', direction: 'out' });
+                        showGesture('🔍- Zoom Out');
+                    }
+                    lastZoomDistance = currentDistance;
+
+                    // Reset scroll position to prevent conflict
+                    lastTouchY = centerY;
+                } else if (!isZooming) {
+                    // Two finger scroll (only if not zooming)
+                    const deltaY = centerY - lastTouchY;
+                    if (Math.abs(deltaY) > 8) {
+                        const direction = deltaY < 0 ? 'up' : 'down';
+                        const amount = Math.ceil(Math.abs(deltaY) / 15);
+                        sendCommand({
+                            action: 'scroll',
+                            direction: direction,
+                            amount: amount
+                        });
+                        lastTouchY = centerY;
+                        showGesture(direction === 'up' ? '⬆️ Scroll' : '⬇️ Scroll');
+                    }
+                }
+            }
         });
-        trackpad.addEventListener('mousedown', function(e) {
+
+        // Touch end
+        trackpad.addEventListener('touchend', function(e) {
             e.preventDefault();
-            lastTouchX = e.clientX;
-            lastTouchY = e.clientY;
-            trackpad.addEventListener('mousemove', handleMouseMove);
+            const touchDuration = Date.now() - lastTouchTime;
+
+            // Handle single taps (short touches without movement)
+            if (touchDuration < 200 && e.changedTouches.length === 1 && e.touches.length === 0) {
+                const wasMoving = Math.abs(e.changedTouches[0].clientX - lastTouchX) > 10 || 
+                                 Math.abs(e.changedTouches[0].clientY - lastTouchY) > 10;
+
+                if (!wasMoving && !isScrolling && !isZooming) {
+                    // Single tap = left click
+                    sendCommand({ action: 'click', button: 'left' });
+                    showGesture('👆 Left Click');
+                }
+            }
+
+            // Reset states when all fingers lifted
+            if (e.touches.length === 0) {
+                isScrolling = false;
+                isZooming = false;
+            }
         });
-        trackpad.addEventListener('mouseup', function(e) {
-            trackpad.removeEventListener('mousemove', handleMouseMove);
+
+        // Prevent context menu and other default behaviors
+        trackpad.addEventListener('contextmenu', e => e.preventDefault());
+        document.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
+        document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+        document.addEventListener('gesturestart', e => e.preventDefault());
+        document.addEventListener('gesturechange', e => e.preventDefault());
+        document.addEventListener('gestureend', e => e.preventDefault());
+
+        // Update status periodically
+        setInterval(() => {
+            status.textContent = `Connected • ${new Date().toLocaleTimeString()} • ${keyboardVisible ? 'Keyboard Active' : 'Ready'}`;
+        }, 5000);
+
+        // Prevent keyboard from interfering with trackpad
+        keyboard.addEventListener('touchstart', function(e) {
+            e.stopPropagation();
         });
-        function handleMouseMove(e) {
-            e.preventDefault();
-            const deltaX = e.clientX - lastTouchX;
-            const deltaY = e.clientY - lastTouchY;
-            sendCommand({ action: 'move', dx: deltaX, dy: deltaY });
-            lastTouchX = e.clientX;
-            lastTouchY = e.clientY;
+
+        keyboard.addEventListener('touchmove', function(e) {
+            e.stopPropagation();
+        });
+
+        keyboard.addEventListener('touchend', function(e) {
+            e.stopPropagation();
+        });
+
+        // Initialize event listeners when page loads
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', setupEventListeners);
+        } else {
+            setupEventListeners();
         }
-        document.addEventListener('touchmove', function(e) { e.preventDefault(); }, { passive: false });
-        document.addEventListener('gesturestart', function(e) { e.preventDefault(); });
     </script>
 </body>
 </html>'''
